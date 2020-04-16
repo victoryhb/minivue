@@ -8,57 +8,78 @@ function MiniVue(options) {
         }
     }.bind(this);
 
-    this.buildVirtualDOM = function (node) {
-        if (node.nodeType == Node.ELEMENT_NODE) {
-            let currentNode = {
-                tag: node.tagName,
+    this.buildVirtualElement = function (domNode) {
+        if (domNode.nodeType == Node.ELEMENT_NODE) {
+            let element = {
+                tag: domNode.tagName,
                 attrs: {},
                 children: [],
             };
-            for (let attr of node.attributes) {
-                currentNode.attrs[attr.name] = attr.value;
+            for (let attr of domNode.attributes) {
+                element.attrs[attr.name] = attr.value;
             }
-            for (let child of node.childNodes) {
-                const childNode = this.buildVirtualDOM(child);
-                currentNode["children"].push(childNode);
+            for (let child of domNode.childNodes) {
+                const childElement = this.buildVirtualElement(child);
+                element["children"].push(childElement);
             }
-            return currentNode;
-        } else if (node.nodeType == Node.TEXT_NODE) {
-            return node.wholeText;
+            return element;
+        } else if (domNode.nodeType == Node.TEXT_NODE) {
+            return { tag: "TEXT", text: domNode.wholeText, children: [] };
         }
     };
 
-    this.renderVirtualDOM = function (node) {
-        if (node.tag) {
-            const element = document.createElement(node.tag);
-            for (let key in node.attrs) {
-                let val = node.attrs[key]; // 'let' avoids closure problems
-                const prefix = key.slice(0, key.indexOf(":") + 1) || (key[0] === "@" ? "@" : "");
-                if (prefix === "v-bind:" || prefix === ":") {
-                    element[key.slice(prefix.length)] = evalInContext(val);
-                } else if (prefix === "v-on:" || prefix === "@") {
-                    element.addEventListener(key.slice(prefix.length), (event) =>
-                        evalInContext(val, { $event: event })
-                    );
-                } else {
-                    element[key] = val;
-                }
+    this.reconcile = function (element, instance) {
+        if (element.tag === "TEXT" || instance.element.tag !== element.tag) {
+            instance.element = element;
+            newInstance = this.instantiate(element);
+            instance.element = newInstance.element;
+            instance.dom.replaceWith(newInstance.dom);
+            instance.dom = newInstance.dom;
+        } else {
+            updateDomProperties(element, instance.dom);
+        }
+        for (var i = 0; i < element.children.length; i++) {
+            this.reconcile(element.children[i], instance.children[i]);
+        }
+    };
+
+    let updateDomProperties = function (element, dom) {
+        for (let key in element.attrs) {
+            let val = element.attrs[key]; // 'let' avoids closure problems
+            const prefix = key.slice(0, key.indexOf(":") + 1) || (key[0] === "@" ? "@" : "");
+            key = key.slice(prefix.length);
+            if (prefix === "v-bind:" || prefix === ":") {
+                dom[key] = evalInContext(val);
+            } else if (prefix === "v-on:" || prefix === "@") {
+                dom["on" + key] = (event) => evalInContext(val, { $event: event });
+            } else {
+                dom[key] = val;
             }
-            for (let child of node.children) {
-                const childElement = this.renderVirtualDOM(child);
-                element.appendChild(childElement);
+        }
+    };
+
+    this.instantiate = function (element) {
+        let instance = { element: element, dom: null, children: [] };
+        if (element.tag !== "TEXT") {
+            const dom = document.createElement(element.tag);
+            updateDomProperties(element, dom);
+            for (let child of element.children) {
+                const childInstance = this.instantiate(child);
+                instance.children.push(childInstance);
+                dom.appendChild(childInstance.dom);
             }
-            return element;
-        } else if (typeof node === "string") {
+            instance.dom = dom;
+        } else {
             const pattern = /\{\{([^\}]+?)\}\}/g;
-            const expressions = node.match(pattern) || [];
+            const expressions = element.text.match(pattern) || [];
             for (let expression of expressions) {
                 const unwrapped = expression.replace(pattern, "$1");
                 const value = evalInContext(unwrapped);
-                node = node.split(expression).join(value); // replace expression with value
+                element.text = element.text.split(expression).join(value); // replace expression with value
             }
-            return document.createTextNode(node);
+            instance.dom = document.createTextNode(element.text);
         }
+        return instance;
     };
 
     const data = options.data || {};
@@ -69,7 +90,9 @@ function MiniVue(options) {
             },
             set(value) {
                 data[key] = value;
-                this.updateDOM();
+                // this.updateDOM();
+                let virtualDOM = this.buildVirtualElement(this.template);
+                this.reconcile(virtualDOM, currentInstance);
             },
         });
     }
@@ -80,15 +103,19 @@ function MiniVue(options) {
         this[key] = methods[key];
     }
 
+    this.updateDOM = function () {
+        const virtualDOM = this.buildVirtualElement(this.template);
+        currentInstance = this.instantiate(virtualDOM);
+        this.reconcile(virtualDOM, currentInstance);
+        
+    };
+    
     let container = document.querySelector(options["el"]);
     this.template = container.cloneNode(true);
-    this.updateDOM = function () {
-        const virtualDOM = this.buildVirtualDOM(this.template);
-        const renderedElement = this.renderVirtualDOM(virtualDOM);
-        container.replaceWith(renderedElement);
-        container = renderedElement;
-    };
+    let currentInstance;
     this.updateDOM();
+    container.replaceWith(currentInstance.dom);
+    container = currentInstance.dom;
     if (options.mounted) {
         options.mounted.bind(this)();
     }

@@ -9,7 +9,9 @@
     <body>
         <!-- features to add: mounted() -->
         <div id="app">
-            <input type="text" v-bind:value="item" v-on:change="doChange($event)" />
+            <input type="text" v-bind:value="item" @input="doChange($event)" />
+            <input type="text" v-bind:value="item" @input="doChange($event)" />
+            <span>{{item}}</span>
             {{item}} is not {{item + "s"}}
         </div>
         <script>
