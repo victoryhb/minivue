@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>My Vue</title>
+        <script src="minivue.js"></script>
+    </head>
+    <body>
+        <!-- features to add: mounted() -->
+        <div id="app">
+            <input type="text" v-bind:value="item" v-on:change="doChange($event)" />
+            {{item}} is not {{item + "s"}}
+        </div>
+        <script>
+            var app = new MiniVue({
+                el: "#app",
+                data: {
+                    item: "good",
+                    message123: "bb",
+                    ll: "ttt",
+                },
+                methods: {
+                    doChange(e) {
+                        this.item = e.target.value;
+                    },
+                },
+                mounted() {
+                    console.log("hello", this.item + "!");
+                },
+            });
+        </script>
+    </body>
+</html>
