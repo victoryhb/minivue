@@ -10,17 +10,15 @@
         <!-- features to add: mounted() -->
         <div id="app">
             <input type="text" v-bind:value="item" @input="doChange($event)" />
-            <input type="text" v-bind:value="item" @input="doChange($event)" />
-            <span>{{item}}</span>
-            {{item}} is not {{item + "s"}}
+            <span v-if="visible">{{item}} is not {{item + "s"}}</span>
+            <span>123</span>
         </div>
         <script>
             var app = new MiniVue({
                 el: "#app",
                 data: {
                     item: "good",
-                    message123: "bb",
-                    ll: "ttt",
+                    visible: true,
                 },
                 methods: {
                     doChange(e) {

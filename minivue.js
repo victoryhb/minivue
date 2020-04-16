@@ -8,7 +8,20 @@ function MiniVue(options) {
         }
     }.bind(this);
 
-    this.buildVirtualElement = function (domNode) {
+    let evaluateProperty = function (key, value) {
+        const prefix = key.slice(0, key.indexOf(":") + 1) || (key[0] === "@" ? "@" : "");
+        key = key.slice(prefix.length);
+        if (prefix === "v-bind:" || prefix === ":" || key === "v-if") {
+            value = evalInContext(value);
+        } else if (prefix === "v-on:" || prefix === "@") {
+            key = "on" + key;
+            let code = value;  // otherwise value will remain the last
+            value = (event) => evalInContext(code, { $event: event });
+        }
+        return [key, value];
+    };
+
+    this.buildVirtualElement = function (domNode, parentElement) {
         if (domNode.nodeType == Node.ELEMENT_NODE) {
             let element = {
                 tag: domNode.tagName,
@@ -16,11 +29,18 @@ function MiniVue(options) {
                 children: [],
             };
             for (let attr of domNode.attributes) {
-                element.attrs[attr.name] = attr.value;
+                const [key, value] = evaluateProperty(attr.name, attr.value)
+                element.attrs[key] = value;
+                if (key === "v-if" && !value) {
+                    return null;
+                }
             }
             for (let child of domNode.childNodes) {
                 const childElement = this.buildVirtualElement(child);
-                element["children"].push(childElement);
+                // might be removed if v-if == false
+                if (childElement) {
+                    element["children"].push(childElement);
+                }
             }
             return element;
         } else if (domNode.nodeType == Node.TEXT_NODE) {
@@ -45,16 +65,7 @@ function MiniVue(options) {
 
     let updateDomProperties = function (element, dom) {
         for (let key in element.attrs) {
-            let val = element.attrs[key]; // 'let' avoids closure problems
-            const prefix = key.slice(0, key.indexOf(":") + 1) || (key[0] === "@" ? "@" : "");
-            key = key.slice(prefix.length);
-            if (prefix === "v-bind:" || prefix === ":") {
-                dom[key] = evalInContext(val);
-            } else if (prefix === "v-on:" || prefix === "@") {
-                dom["on" + key] = (event) => evalInContext(val, { $event: event });
-            } else {
-                dom[key] = val;
-            }
+            dom[key] = element.attrs[key]; 
         }
     };
 
@@ -107,9 +118,8 @@ function MiniVue(options) {
         const virtualDOM = this.buildVirtualElement(this.template);
         currentInstance = this.instantiate(virtualDOM);
         this.reconcile(virtualDOM, currentInstance);
-        
     };
-    
+
     let container = document.querySelector(options["el"]);
     this.template = container.cloneNode(true);
     let currentInstance;
