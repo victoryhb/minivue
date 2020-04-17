@@ -5,28 +5,46 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>My Vue</title>
         <script src="minivue.js"></script>
+        <style>
+            .highlight {
+                color: red;
+            }
+        </style>
     </head>
     <body>
         <div id="app">
             <input type="text" v-bind:value="username" @input="doChange($event)" />
-            
-            <span v-if="username && (username.length < 5)">your username is too short</span>
-            <span v-if="username.length > 8">your username is too long</span>
-            <br>
-            <span v-if='username'>Your username is: {{username}}</span>
+            <span v-if="username && (username.length < minLength)">
+                your username is {{minLength - username.length}} chars too short
+            </span>
+            <span v-if="username.length > maxLength">
+                your username is {{username.length - maxLength}} chars too long
+            </span>
+            <br />
+            <span v-if="username" :class="!isValid()?'highlight':''">
+                Your username is: {{username}}
+            </span>
             <label v-if="!username">Please type in a username</label>
-            
         </div>
         <script>
             var app = new MiniVue({
                 el: "#app",
                 data: {
                     username: "",
-                    visible: true,
+                    minLength: 4,
+                    maxLength: 8,
                 },
                 methods: {
                     doChange(e) {
                         this.username = e.target.value;
+                    },
+                    isValid() {
+                        return (
+                            this.username &&
+                            this.username.length >= this.minLength &&
+                            this.username.length <= this.maxLength &&
+                            this.username.indexOf(" ") == -1
+                        );
                     },
                 },
                 mounted() {

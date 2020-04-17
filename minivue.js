@@ -18,6 +18,7 @@ function MiniVue(options) {
             let code = value; // otherwise value will remain the last
             value = (event) => evalInContext(code, { $event: event });
         }
+        if (key === "class") key = "className";
         return [key, value];
     };
 
@@ -30,6 +31,7 @@ function MiniVue(options) {
             };
             for (let attr of domNode.attributes) {
                 const [key, value] = evaluateProperty(attr.name, attr.value);
+                if (key == "class") console.log(key, value);
                 element.attrs[key] = value;
                 if (key === "v-if" && !value) {
                     return null; // will not be added if v-if is false
@@ -57,8 +59,8 @@ function MiniVue(options) {
             return;
         } else if (element.tag === "TEXT" || instance.element.tag !== element.tag) {
             let newInstance = this.instantiate(element);
-            instance.element = newInstance.element;
             parentDom.replaceChild(newInstance.dom, instance.dom);
+            instance.element = newInstance.element;
             instance.dom = newInstance.dom;
             instance.children = newInstance.children; // got me!
         } else {
@@ -121,16 +123,13 @@ function MiniVue(options) {
     }
 
     this.updateDOM = function () {
-        virtualDOM = this.buildVirtualElement(this.template);
-        currentInstance = this.reconcile(this.container, virtualDOM, currentInstance);
+        let virtualDOM = this.buildVirtualElement(this.template);
+        this.currentInstance = this.reconcile(this.container, virtualDOM, this.currentInstance);
     };
 
     this.container = document.querySelector(options["el"]);
     this.template = this.container.cloneNode(true);
-    let virtualDOM = this.buildVirtualElement(this.template);
-    let currentInstance;
-    this.currentInstance = currentInstance;
-
+    this.currentInstance = null;
     this.container.innerHTML = "";
     this.updateDOM();
 
