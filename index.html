@@ -7,26 +7,30 @@
         <script src="minivue.js"></script>
     </head>
     <body>
-        <!-- features to add: mounted() -->
         <div id="app">
-            <input type="text" v-bind:value="item" @input="doChange($event)" />
-            <span v-if="visible">{{item}} is not {{item + "s"}}</span>
-            <span>123</span>
+            <input type="text" v-bind:value="username" @input="doChange($event)" />
+            
+            <span v-if="username && (username.length < 5)">your username is too short</span>
+            <span v-if="username.length > 8">your username is too long</span>
+            <br>
+            <span v-if='username'>Your username is: {{username}}</span>
+            <label v-if="!username">Please type in a username</label>
+            
         </div>
         <script>
             var app = new MiniVue({
                 el: "#app",
                 data: {
-                    item: "good",
+                    username: "",
                     visible: true,
                 },
                 methods: {
                     doChange(e) {
-                        this.item = e.target.value;
+                        this.username = e.target.value;
                     },
                 },
                 mounted() {
-                    console.log("hello", this.item + "!");
+                    console.log("hello!");
                 },
             });
         </script>

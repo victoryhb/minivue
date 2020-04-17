@@ -15,13 +15,13 @@ function MiniVue(options) {
             value = evalInContext(value);
         } else if (prefix === "v-on:" || prefix === "@") {
             key = "on" + key;
-            let code = value;  // otherwise value will remain the last
+            let code = value; // otherwise value will remain the last
             value = (event) => evalInContext(code, { $event: event });
         }
         return [key, value];
     };
 
-    this.buildVirtualElement = function (domNode, parentElement) {
+    this.buildVirtualElement = function (domNode) {
         if (domNode.nodeType == Node.ELEMENT_NODE) {
             let element = {
                 tag: domNode.tagName,
@@ -29,15 +29,14 @@ function MiniVue(options) {
                 children: [],
             };
             for (let attr of domNode.attributes) {
-                const [key, value] = evaluateProperty(attr.name, attr.value)
+                const [key, value] = evaluateProperty(attr.name, attr.value);
                 element.attrs[key] = value;
                 if (key === "v-if" && !value) {
-                    return null;
+                    return null; // will not be added if v-if is false
                 }
             }
             for (let child of domNode.childNodes) {
                 const childElement = this.buildVirtualElement(child);
-                // might be removed if v-if == false
                 if (childElement) {
                     element["children"].push(childElement);
                 }
@@ -48,24 +47,33 @@ function MiniVue(options) {
         }
     };
 
-    this.reconcile = function (element, instance) {
-        if (element.tag === "TEXT" || instance.element.tag !== element.tag) {
-            instance.element = element;
-            newInstance = this.instantiate(element);
+    this.reconcile = function (parentDom, element, instance) {
+        if (!instance) {
+            instance = this.instantiate(element);
+            parentDom.appendChild(instance.dom);
+        } else if (!element) {
+            instance.dom.remove();
+            delete instance;
+            return;
+        } else if (element.tag === "TEXT" || instance.element.tag !== element.tag) {
+            let newInstance = this.instantiate(element);
             instance.element = newInstance.element;
-            instance.dom.replaceWith(newInstance.dom);
+            parentDom.replaceChild(newInstance.dom, instance.dom);
             instance.dom = newInstance.dom;
+            instance.children = newInstance.children; // got me!
         } else {
             updateDomProperties(element, instance.dom);
         }
-        for (var i = 0; i < element.children.length; i++) {
-            this.reconcile(element.children[i], instance.children[i]);
+        for (let i = 0; i < element.children.length; i++) {
+            let [childElement, childInstance] = [element.children[i], instance.children[i]];
+            this.reconcile(instance.dom, childElement, childInstance);
         }
+        return instance;
     };
 
     let updateDomProperties = function (element, dom) {
         for (let key in element.attrs) {
-            dom[key] = element.attrs[key]; 
+            dom[key] = element.attrs[key];
         }
     };
 
@@ -101,9 +109,7 @@ function MiniVue(options) {
             },
             set(value) {
                 data[key] = value;
-                // this.updateDOM();
-                let virtualDOM = this.buildVirtualElement(this.template);
-                this.reconcile(virtualDOM, currentInstance);
+                this.updateDOM();
             },
         });
     }
@@ -115,17 +121,19 @@ function MiniVue(options) {
     }
 
     this.updateDOM = function () {
-        const virtualDOM = this.buildVirtualElement(this.template);
-        currentInstance = this.instantiate(virtualDOM);
-        this.reconcile(virtualDOM, currentInstance);
+        virtualDOM = this.buildVirtualElement(this.template);
+        currentInstance = this.reconcile(this.container, virtualDOM, currentInstance);
     };
 
-    let container = document.querySelector(options["el"]);
-    this.template = container.cloneNode(true);
+    this.container = document.querySelector(options["el"]);
+    this.template = this.container.cloneNode(true);
+    let virtualDOM = this.buildVirtualElement(this.template);
     let currentInstance;
+    this.currentInstance = currentInstance;
+
+    this.container.innerHTML = "";
     this.updateDOM();
-    container.replaceWith(currentInstance.dom);
-    container = currentInstance.dom;
+
     if (options.mounted) {
         options.mounted.bind(this)();
     }
